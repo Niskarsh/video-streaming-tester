@@ -12,6 +12,7 @@ export default function LiveScreenStreaming() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const streamOpenRef = useRef<boolean>(true)
   const mediaStreamRef = useRef<MediaStream | null>(null)
+
   const s3 = new S3Client({
     region: env.NEXT_PUBLIC_AWS_REGION,
     credentials: {
@@ -68,16 +69,9 @@ export default function LiveScreenStreaming() {
         Key: key,
         Body: readableStream,
       },
-      tags: [
-        // optional tags
-      ],
-      // (optional) concurrency configuration
+      tags: [],
       queueSize: 8,
-      // (optional) size of each part, in bytes, at least 5MB
       partSize: 1024 * 1024 * 5,
-      // (optional) when true, do not automatically call AbortMultipartUpload when
-      // a multipart upload fails to complete. You should then manually handle
-      // the leftover parts.
       leavePartsOnError: false,
     })
 
@@ -90,7 +84,7 @@ export default function LiveScreenStreaming() {
       )
     })
 
-    mediaRecorder.start(100) // Capture in small chunks for low latency
+    mediaRecorder.start(100)
     setIsStreaming(true)
     try {
       await upload.done()
