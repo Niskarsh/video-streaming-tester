@@ -30,21 +30,30 @@ export default function LiveScreenStreaming() {
     const screenStream = await navigator.mediaDevices.getDisplayMedia({
       video: true,
     })
+    const audioStream = await navigator.mediaDevices.getUserMedia({
+      audio: true,
+    })
+
+    const combinedStream = new MediaStream([
+      ...screenStream.getTracks(),
+      ...audioStream.getTracks(),
+    ])
+
     const webcamStream = await navigator.mediaDevices.getUserMedia({
       video: true,
     })
 
-    screenMediaStreamRef.current = screenStream
+    screenMediaStreamRef.current = combinedStream
     webcamMediaStreamRef.current = webcamStream
 
     if (screenVideoRef.current) {
-      screenVideoRef.current.srcObject = screenStream
+      screenVideoRef.current.srcObject = combinedStream
     }
     if (webcamVideoRef.current) {
       webcamVideoRef.current.srcObject = webcamStream
     }
 
-    const screenMediaRecorder = new MediaRecorder(screenStream, {
+    const screenMediaRecorder = new MediaRecorder(combinedStream, {
       mimeType: 'video/webm; codecs=vp9',
     })
     screenMediaRecorderRef.current = screenMediaRecorder
@@ -102,8 +111,8 @@ export default function LiveScreenStreaming() {
       },
     })
 
-    const screenKey = `screen_recording/SCREEN_RECORDING_${uuidv4()}_${new Date().getTime()}.webm`
-    const webcamKey = `camera_recording/CAMERA_RECORDING_${uuidv4()}_${new Date().getTime()}.webm`
+    const screenKey = `screen-stream-${uuidv4()}.webm`
+    const webcamKey = `webcam-stream-${uuidv4()}.webm`
 
     const screenUpload = new Upload({
       client: s3,
