@@ -9,9 +9,13 @@ import { env } from '@/env'
 export default function LiveScreenStreaming() {
   const [isStreaming, setIsStreaming] = useState(false)
   const screenVideoRef = useRef<HTMLVideoElement>(null)
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
-  const streamOpenRef = useRef<boolean>(true)
-  const mediaStreamRef = useRef<MediaStream | null>(null)
+  const webcamVideoRef = useRef<HTMLVideoElement>(null)
+  const screenMediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const webcamMediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const screenStreamOpenRef = useRef<boolean>(true)
+  const webcamStreamOpenRef = useRef<boolean>(true)
+  const screenMediaStreamRef = useRef<MediaStream | null>(null)
+  const webcamMediaStreamRef = useRef<MediaStream | null>(null)
 
   const s3 = new S3Client({
     region: env.NEXT_PUBLIC_AWS_REGION,
@@ -23,51 +27,90 @@ export default function LiveScreenStreaming() {
   })
 
   const startStreaming = async () => {
-    const mediaStream = await navigator.mediaDevices.getDisplayMedia({
+    const screenStream = await navigator.mediaDevices.getDisplayMedia({
       video: true,
     })
-    mediaStreamRef.current = mediaStream
+    const webcamStream = await navigator.mediaDevices.getUserMedia({
+      video: true,
+    })
+
+    screenMediaStreamRef.current = screenStream
+    webcamMediaStreamRef.current = webcamStream
+
     if (screenVideoRef.current) {
-      screenVideoRef.current.srcObject = mediaStream
+      screenVideoRef.current.srcObject = screenStream
+    }
+    if (webcamVideoRef.current) {
+      webcamVideoRef.current.srcObject = webcamStream
     }
 
-    const mediaRecorder = new MediaRecorder(mediaStream, {
+    const screenMediaRecorder = new MediaRecorder(screenStream, {
       mimeType: 'video/webm; codecs=vp9',
     })
-    mediaRecorderRef.current = mediaRecorder
+    screenMediaRecorderRef.current = screenMediaRecorder
 
-    const readableStream = new ReadableStream({
+    const webcamMediaRecorder = new MediaRecorder(webcamStream, {
+      mimeType: 'video/webm; codecs=vp9',
+    })
+    webcamMediaRecorderRef.current = webcamMediaRecorder
+
+    const screenReadableStream = new ReadableStream({
       start(controller) {
-        mediaRecorder.ondataavailable = async (event) => {
-          if (event.data.size > 0 && streamOpenRef.current) {
+        screenMediaRecorder.ondataavailable = async (event) => {
+          if (event.data.size > 0 && screenStreamOpenRef.current) {
             const chunkSize = 64 * 1024 // 64 KB chunks
             for (let i = 0; i < event.data.size; i += chunkSize) {
               const chunk = event.data.slice(i, i + chunkSize)
               const buffer = Buffer.from(
                 new Uint8Array(await chunk.arrayBuffer())
               )
-              if (streamOpenRef.current) {
+              if (screenStreamOpenRef.current) {
                 controller.enqueue(buffer)
               }
             }
           }
         }
 
-        mediaRecorder.onstop = () => {
-          streamOpenRef.current = false
+        screenMediaRecorder.onstop = () => {
+          screenStreamOpenRef.current = false
           controller.close() // Close the stream when recording stops
         }
       },
     })
 
-    const key = `live-stream-${uuidv4()}.webm`
+    const webcamReadableStream = new ReadableStream({
+      start(controller) {
+        webcamMediaRecorder.ondataavailable = async (event) => {
+          if (event.data.size > 0 && webcamStreamOpenRef.current) {
+            const chunkSize = 64 * 1024 // 64 KB chunks
+            for (let i = 0; i < event.data.size; i += chunkSize) {
+              const chunk = event.data.slice(i, i + chunkSize)
+              const buffer = Buffer.from(
+                new Uint8Array(await chunk.arrayBuffer())
+              )
+              if (webcamStreamOpenRef.current) {
+                controller.enqueue(buffer)
+              }
+            }
+          }
+        }
 
-    const upload = new Upload({
+        webcamMediaRecorder.onstop = () => {
+          webcamStreamOpenRef.current = false
+          controller.close() // Close the stream when recording stops
+        }
+      },
+    })
+
+    const screenKey = `screen_recording/SCREEN_RECORDING_${uuidv4()}_${new Date().getTime()}.webm`
+    const webcamKey = `camera_recording/CAMERA_RECORDING_${uuidv4()}_${new Date().getTime()}.webm`
+
+    const screenUpload = new Upload({
       client: s3,
       params: {
         Bucket: env.NEXT_PUBLIC_AWS_BUCKET_NAME,
-        Key: key,
-        Body: readableStream,
+        Key: screenKey,
+        Body: screenReadableStream,
       },
       tags: [],
       queueSize: 8,
@@ -75,19 +118,42 @@ export default function LiveScreenStreaming() {
       leavePartsOnError: false,
     })
 
-    upload.on('httpUploadProgress', (progress) => {
+    const webcamUpload = new Upload({
+      client: s3,
+      params: {
+        Bucket: env.NEXT_PUBLIC_AWS_BUCKET_NAME,
+        Key: webcamKey,
+        Body: webcamReadableStream,
+      },
+      tags: [],
+      queueSize: 8,
+      partSize: 1024 * 1024 * 5,
+      leavePartsOnError: false,
+    })
+
+    screenUpload.on('httpUploadProgress', (progress) => {
       console.log(
-        `Uploaded part: ${progress.loaded}${
+        `Uploaded screen part: ${progress.loaded}${
           progress.total ? `/${progress.total}` : ''
         }`,
         progress
       )
     })
 
-    mediaRecorder.start(100)
+    webcamUpload.on('httpUploadProgress', (progress) => {
+      console.log(
+        `Uploaded webcam part: ${progress.loaded}${
+          progress.total ? `/${progress.total}` : ''
+        }`,
+        progress
+      )
+    })
+
+    screenMediaRecorder.start(100)
+    webcamMediaRecorder.start(100)
     setIsStreaming(true)
     try {
-      await upload.done()
+      await Promise.all([screenUpload.done(), webcamUpload.done()])
       console.log('Upload completed')
     } catch (err) {
       console.error('Error uploading to S3:', err)
@@ -95,26 +161,44 @@ export default function LiveScreenStreaming() {
   }
 
   const stopStreaming = () => {
-    if (mediaRecorderRef.current) {
-      mediaRecorderRef.current.stop()
+    if (screenMediaRecorderRef.current) {
+      screenMediaRecorderRef.current.stop()
     }
-    if (mediaStreamRef.current) {
-      const tracks = mediaStreamRef.current.getTracks()
+    if (webcamMediaRecorderRef.current) {
+      webcamMediaRecorderRef.current.stop()
+    }
+    if (screenMediaStreamRef.current) {
+      const tracks = screenMediaStreamRef.current.getTracks()
       tracks.forEach((track) => track.stop())
-      mediaStreamRef.current = null
+      screenMediaStreamRef.current = null
+    }
+    if (webcamMediaStreamRef.current) {
+      const tracks = webcamMediaStreamRef.current.getTracks()
+      tracks.forEach((track) => track.stop())
+      webcamMediaStreamRef.current = null
     }
     if (screenVideoRef.current) {
       screenVideoRef.current.srcObject = null
+    }
+    if (webcamVideoRef.current) {
+      webcamVideoRef.current.srcObject = null
     }
     setIsStreaming(false)
   }
 
   return (
     <div className="flex flex-col items-center space-y-4">
-      <h1 className="text-2xl font-bold">Live Screen Streaming</h1>
+      <h1 className="text-2xl font-bold">Live Screen and Webcam Streaming</h1>
       <video
         id="screenVideo"
         ref={screenVideoRef}
+        autoPlay
+        muted
+        className="w-full max-w-lg"
+      ></video>
+      <video
+        id="webcamVideo"
+        ref={webcamVideoRef}
         autoPlay
         muted
         className="w-full max-w-lg"
