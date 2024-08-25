@@ -118,7 +118,8 @@ export default function LiveScreenStreaming() {
 
     const screenKey =
       prefix.screen + `screen-stream-${uuidv4()}-${new Date().getTime()}.webm`
-    const webcamKey = prefix.webcam + `webcam-stream--${uuidv4()}-${new Date().getTime()}.webm`
+    const webcamKey =
+      prefix.webcam + `webcam-stream-${uuidv4()}-${new Date().getTime()}.webm`
 
     const screenUpload = new Upload({
       client: s3,
