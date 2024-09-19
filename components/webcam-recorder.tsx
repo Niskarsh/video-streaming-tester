@@ -11,20 +11,17 @@ export default function WebcamRecorder({ stream }: WebcamRecorderProps) {
     const enablePiP = async () => {
       if (videoRef.current && stream) {
         videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-        if ("documentPictureInPicture" in window) {
-          try {
-            const pipWindow = await (
-              window as any
-            ).documentPictureInPicture.requestWindow();
-            pipWindow.document.body.append(videoRef.current);
-          } catch (error) {
-            console.error("Failed to enter Picture-in-Picture mode:", error);
+        try {
+          await videoRef.current.play();
+          if (document.pictureInPictureEnabled) {
+            await videoRef.current.requestPictureInPicture();
+          } else {
+            console.warn(
+              "Picture-in-Picture mode is not supported in this browser."
+            );
           }
-        } else {
-          console.warn(
-            "Picture-in-Picture mode is not supported in this browser."
-          );
+        } catch (error) {
+          console.error("Failed to enter Picture-in-Picture mode:", error);
         }
       }
     };
@@ -32,22 +29,11 @@ export default function WebcamRecorder({ stream }: WebcamRecorderProps) {
     enablePiP();
 
     return () => {
-      if (videoRef.current && videoRef.current.parentNode !== document.body) {
-        document.body.appendChild(videoRef?.current);
+      if (document.pictureInPictureElement) {
+        document.exitPictureInPicture();
       }
     };
   }, [stream]);
 
-  return (
-    <div id="playerContainer">
-      <div id="player">
-        <video
-          ref={videoRef}
-          autoPlay
-          muted
-          className="w-full h-full object-cover rounded-lg shadow-lg"
-        ></video>
-      </div>
-    </div>
-  );
+  return <video ref={videoRef} autoPlay muted className="hidden" />;
 }

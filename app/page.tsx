@@ -11,31 +11,34 @@ export default function LiveScreenStreaming() {
   const [webcamStream, setWebcamStream] = useState<MediaStream | null>(null);
 
   const startStreaming = async () => {
-    const screen = await navigator.mediaDevices.getDisplayMedia({
-      video: true,
-    });
-    const audio = await navigator.mediaDevices.getUserMedia({ audio: true });
-    const webcam = await navigator.mediaDevices.getUserMedia({ video: true });
+    try {
+      const screen = await navigator.mediaDevices.getDisplayMedia({
+        video: true,
+      });
+      const audio = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const webcam = await navigator.mediaDevices.getUserMedia({ video: true });
 
-    const combinedScreenStream = new MediaStream([
-      ...screen.getTracks(),
-      ...audio.getTracks(),
-    ]);
+      const combinedScreenStream = new MediaStream([
+        ...screen.getTracks(),
+        ...audio.getTracks(),
+      ]);
 
-    setScreenStream(combinedScreenStream);
-    setWebcamStream(webcam);
-    setIsStreaming(true);
+      setScreenStream(combinedScreenStream);
+      setWebcamStream(webcam);
+      setIsStreaming(true);
+    } catch (error) {
+      console.error("Error starting streams:", error);
+    }
   };
 
   const stopStreaming = () => {
-    if (screenStream) {
-      screenStream.getTracks().forEach((track) => track.stop());
-      setScreenStream(null);
-    }
-    if (webcamStream) {
-      webcamStream.getTracks().forEach((track) => track.stop());
-      setWebcamStream(null);
-    }
+    [screenStream, webcamStream].forEach((stream) => {
+      if (stream) {
+        stream.getTracks().forEach((track) => track.stop());
+      }
+    });
+    setScreenStream(null);
+    setWebcamStream(null);
     setIsStreaming(false);
   };
 
@@ -48,8 +51,8 @@ export default function LiveScreenStreaming() {
           webcam.
         </p>
         <p>
-          Your screen will be displayed here, and your webcam will appear in
-          picture-in-picture mode.
+          Your screen will be displayed here, and your webcam will appear in a
+          separate Picture-in-Picture window.
         </p>
         <p>
           The streams will be automatically uploaded to the cloud as you record.
