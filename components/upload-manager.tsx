@@ -40,14 +40,31 @@ export default function UploadManager({
   const startUploading = () => {
     if (!screenStream || !webcamStream) return;
 
-    const screenMediaRecorder = new MediaRecorder(screenStream, {
-      mimeType: "video/webm; codecs=vp9",
-    });
+    let options;
+
+    if (MediaRecorder.isTypeSupported("video/webm;codecs=vp8,opus")) {
+      options = { mimeType: "video/webm;codecs=vp8,opus" };
+    } else if (MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus")) {
+      options = { mimeType: "video/webm;codecs=vp9,opus" };
+    } else if (
+      MediaRecorder.isTypeSupported('video/mp4;codecs="avc1.42E01E, mp4a.40.2"')
+    ) {
+      options = { mimeType: 'video/mp4;codecs="avc1.42E01E, mp4a.40.2"' };
+    } else if (MediaRecorder.isTypeSupported("video/ogg;codecs=theora,opus")) {
+      options = { mimeType: "video/ogg;codecs=theora,opus" };
+    } else if (MediaRecorder.isTypeSupported("video/webm;codecs=opus")) {
+      options = { mimeType: "video/webm;codecs=opus" }; // Fallback to generic webm with opus audio
+    } else if (MediaRecorder.isTypeSupported("video/webm")) {
+      options = { mimeType: "video/webm" }; // Fallback to generic webm
+    } else {
+      console.error("No supported video format found for recording.");
+      return;
+    }
+
+    const screenMediaRecorder = new MediaRecorder(screenStream, options);
     screenMediaRecorderRef.current = screenMediaRecorder;
 
-    const webcamMediaRecorder = new MediaRecorder(webcamStream, {
-      mimeType: "video/webm; codecs=vp9",
-    });
+    const webcamMediaRecorder = new MediaRecorder(webcamStream, options);
     webcamMediaRecorderRef.current = webcamMediaRecorder;
 
     const screenReadableStream = createReadableStream(
