@@ -40,10 +40,24 @@ export default function LiveScreenStreaming() {
   };
 
   return (
-    <div className="flex flex-col items-center space-y-4">
+    <div className="flex flex-col items-center space-y-4 p-4">
       <h1 className="text-2xl font-bold">Live Screen and Webcam Streaming</h1>
-      <ScreenRecorder stream={screenStream} />
-      <WebcamRecorder stream={webcamStream} />
+      <div className="text-center mb-4">
+        <p>
+          Click "Start Streaming" to begin recording your screen and webcam.
+        </p>
+        <p>
+          Your screen will be displayed here, and your webcam will appear in
+          picture-in-picture mode.
+        </p>
+        <p>
+          The streams will be automatically uploaded to the cloud as you record.
+        </p>
+      </div>
+      <div className="w-full max-w-3xl">
+        <ScreenRecorder stream={screenStream} />
+        {isStreaming && <WebcamRecorder stream={webcamStream} />}
+      </div>
       <UploadManager
         screenStream={screenStream}
         webcamStream={webcamStream}
