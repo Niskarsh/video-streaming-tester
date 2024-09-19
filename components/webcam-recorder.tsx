@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from "react";
+import React, { useRef, useEffect, useState } from "react";
 
 interface WebcamRecorderProps {
   stream: MediaStream | null;
@@ -6,60 +6,66 @@ interface WebcamRecorderProps {
 
 export default function WebcamRecorder({ stream }: WebcamRecorderProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [isPiPSupported, setIsPiPSupported] = useState(false);
-  const [isPiPActive, setIsPiPActive] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setIsPiPSupported("pictureInPictureEnabled" in document);
-  }, []);
+    console.log("WebcamRecorder: Effect triggered");
+    console.log("WebcamRecorder: Stream received:", stream);
 
-  useEffect(() => {
-    const video = videoRef.current;
-    if (video && stream) {
-      video.srcObject = stream;
-      video
-        .play()
-        .catch((error) => console.error("Error playing video:", error));
-    }
+    let playAttempts = 0;
+    const maxPlayAttempts = 3;
+
+    const attemptPlay = async () => {
+      if (videoRef.current && stream) {
+        try {
+          videoRef.current.srcObject = stream;
+          await videoRef.current.play();
+          console.log("WebcamRecorder: Video playing successfully");
+          setError(null);
+        } catch (error) {
+          console.error("WebcamRecorder: Error playing video:", error);
+          if (playAttempts < maxPlayAttempts) {
+            playAttempts++;
+            console.log(
+              `WebcamRecorder: Retrying play (attempt ${playAttempts})`
+            );
+            setTimeout(attemptPlay, 1000); // Wait 1 second before retrying
+          } else {
+            setError("Failed to play webcam stream after multiple attempts");
+          }
+        }
+      } else if (!stream) {
+        console.log("WebcamRecorder: No stream received");
+        setError("No webcam stream available");
+      }
+    };
+
+    attemptPlay();
 
     return () => {
-      if (video) {
-        video.srcObject = null;
+      console.log("WebcamRecorder: Cleanup");
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
       }
     };
   }, [stream]);
 
-  const togglePiP = async () => {
-    if (!videoRef.current) return;
-
-    try {
-      if (!isPiPActive) {
-        await videoRef.current.requestPictureInPicture();
-        setIsPiPActive(true);
-      } else {
-        await document.exitPictureInPicture();
-        setIsPiPActive(false);
-      }
-    } catch (error) {
-      console.error("Failed to toggle Picture-in-Picture mode:", error);
-    }
-  };
-
   return (
-    <div className="relative">
+    <div>
       <video
         ref={videoRef}
         autoPlay
         muted
-        className={`w-full max-w-xs ${isPiPActive ? "hidden" : ""}`}
-      />
-      {isPiPSupported && (
-        <button
-          onClick={togglePiP}
-          className="absolute top-2 right-2 bg-blue-500 text-white px-2 py-1 rounded"
-        >
-          {isPiPActive ? "Exit PiP" : "Enter PiP"}
-        </button>
+        playsInline
+        className="w-full max-w-lg"
+        onLoadedMetadata={() =>
+          console.log("WebcamRecorder: Video metadata loaded")
+        }
+      ></video>
+      {error && (
+        <p className="text-red-500 mt-2">
+          Error: {error}. Please check your webcam permissions and try again.
+        </p>
       )}
     </div>
   );

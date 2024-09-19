@@ -2,7 +2,7 @@ import { useRef, useEffect } from "react";
 import { Upload } from "@aws-sdk/lib-storage";
 import { S3Client } from "@aws-sdk/client-s3";
 import { v4 as uuidv4 } from "uuid";
-import { env } from "@/env";
+import { env } from "@/lib/env";
 
 interface UploadManagerProps {
   screenStream: MediaStream | null;
@@ -20,46 +20,64 @@ export default function UploadManager({
   const screenStreamOpenRef = useRef<boolean>(true);
   const webcamStreamOpenRef = useRef<boolean>(true);
 
-  const s3 = new S3Client({
-    region: env.NEXT_PUBLIC_AWS_REGION,
-    credentials: {
-      accessKeyId: env.NEXT_PUBLIC_AWS_ACCESS_KEY_ID,
-      secretAccessKey: env.NEXT_PUBLIC_AWS_SECRET_ACCESS_KEY,
-    },
-    useAccelerateEndpoint: true,
-  });
-
   useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    console.log("UploadManager: Effect triggered");
+    console.log("isStreaming:", isStreaming);
+    console.log("screenStream:", screenStream);
+    console.log("webcamStream:", webcamStream);
+
+    const s3 = new S3Client({
+      region: env.NEXT_PUBLIC_AWS_REGION,
+      credentials: {
+        accessKeyId: env.NEXT_PUBLIC_AWS_ACCESS_KEY_ID,
+        secretAccessKey: env.NEXT_PUBLIC_AWS_SECRET_ACCESS_KEY,
+      },
+      useAccelerateEndpoint: true,
+    });
+
     if (isStreaming && screenStream && webcamStream) {
-      startUploading();
+      console.log("UploadManager: Starting upload");
+      startUploading(s3);
     } else {
+      console.log("UploadManager: Stopping upload");
       stopUploading();
     }
+
+    return () => {
+      console.log("UploadManager: Cleanup");
+      stopUploading();
+    };
   }, [isStreaming, screenStream, webcamStream]);
 
-  const startUploading = () => {
-    if (!screenStream || !webcamStream) return;
-
-    let options;
-
-    if (MediaRecorder.isTypeSupported("video/webm;codecs=vp8,opus")) {
-      options = { mimeType: "video/webm;codecs=vp8,opus" };
-    } else if (MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus")) {
-      options = { mimeType: "video/webm;codecs=vp9,opus" };
-    } else if (
-      MediaRecorder.isTypeSupported('video/mp4;codecs="avc1.42E01E, mp4a.40.2"')
-    ) {
-      options = { mimeType: 'video/mp4;codecs="avc1.42E01E, mp4a.40.2"' };
-    } else if (MediaRecorder.isTypeSupported("video/ogg;codecs=theora,opus")) {
-      options = { mimeType: "video/ogg;codecs=theora,opus" };
-    } else if (MediaRecorder.isTypeSupported("video/webm;codecs=opus")) {
-      options = { mimeType: "video/webm;codecs=opus" }; // Fallback to generic webm with opus audio
-    } else if (MediaRecorder.isTypeSupported("video/webm")) {
-      options = { mimeType: "video/webm" }; // Fallback to generic webm
-    } else {
-      console.error("No supported video format found for recording.");
+  const startUploading = (s3: S3Client) => {
+    if (!screenStream || !webcamStream) {
+      console.error("UploadManager: Missing stream(s)");
       return;
     }
+
+    console.log("UploadManager: Setting up MediaRecorder");
+    let options: MediaRecorderOptions = { mimeType: "video/webm" };
+
+    if (MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus")) {
+      options = { mimeType: "video/webm;codecs=vp9,opus" };
+    } else if (MediaRecorder.isTypeSupported("video/webm;codecs=vp8,opus")) {
+      options = { mimeType: "video/webm;codecs=vp8,opus" };
+    } else if (MediaRecorder.isTypeSupported("video/webm;codecs=vp9")) {
+      options = { mimeType: "video/webm;codecs=vp9" };
+    } else if (MediaRecorder.isTypeSupported("video/webm;codecs=vp8")) {
+      options = { mimeType: "video/webm;codecs=vp8" };
+    } else if (MediaRecorder.isTypeSupported("video/webm")) {
+      options = { mimeType: "video/webm" };
+    } else {
+      console.error(
+        "UploadManager: No supported video format found for recording."
+      );
+      return;
+    }
+
+    console.log("UploadManager: Selected MIME type:", options.mimeType);
 
     const screenMediaRecorder = new MediaRecorder(screenStream, options);
     screenMediaRecorderRef.current = screenMediaRecorder;
@@ -67,13 +85,16 @@ export default function UploadManager({
     const webcamMediaRecorder = new MediaRecorder(webcamStream, options);
     webcamMediaRecorderRef.current = webcamMediaRecorder;
 
+    console.log("UploadManager: Creating readable streams");
     const screenReadableStream = createReadableStream(
       screenMediaRecorder,
-      screenStreamOpenRef
+      screenStreamOpenRef,
+      "screen"
     );
     const webcamReadableStream = createReadableStream(
       webcamMediaRecorder,
-      webcamStreamOpenRef
+      webcamStreamOpenRef,
+      "webcam"
     );
 
     const prefix = {
@@ -88,18 +109,23 @@ export default function UploadManager({
       prefix.webcam
     }webcam-stream-${uuidv4()}-${new Date().getTime()}.webm`;
 
+    console.log("UploadManager: Creating S3 uploads");
     const screenUpload = createUpload(s3, screenKey, screenReadableStream);
     const webcamUpload = createUpload(s3, webcamKey, webcamReadableStream);
 
-    screenMediaRecorder.start(100);
-    webcamMediaRecorder.start(100);
+    console.log("UploadManager: Starting MediaRecorders");
+    screenMediaRecorder.start(1000);
+    webcamMediaRecorder.start(1000);
 
     Promise.all([screenUpload.done(), webcamUpload.done()])
-      .then(() => console.log("Upload completed"))
-      .catch((err) => console.error("Error uploading to S3:", err));
+      .then(() => console.log("UploadManager: Upload completed"))
+      .catch((err) =>
+        console.error("UploadManager: Error uploading to S3:", err)
+      );
   };
 
   const stopUploading = () => {
+    console.log("UploadManager: Stopping uploads");
     if (screenMediaRecorderRef.current) {
       screenMediaRecorderRef.current.stop();
     }
@@ -110,31 +136,36 @@ export default function UploadManager({
     webcamStreamOpenRef.current = false;
   };
 
-  return null; // This component doesn't render anything
+  return null;
 }
 
 function createReadableStream(
   mediaRecorder: MediaRecorder,
-  streamOpenRef: React.MutableRefObject<boolean>
+  streamOpenRef: React.MutableRefObject<boolean>,
+  streamType: string
 ) {
+  console.log(`UploadManager: Creating ReadableStream for ${streamType}`);
   return new ReadableStream({
     start(controller) {
       mediaRecorder.ondataavailable = async (event) => {
         if (event.data.size > 0 && streamOpenRef.current) {
-          const chunkSize = 64 * 1024; // 64 KB chunks
-          for (let i = 0; i < event.data.size; i += chunkSize) {
-            const chunk = event.data.slice(i, i + chunkSize);
-            const buffer = Buffer.from(
-              new Uint8Array(await chunk.arrayBuffer())
-            );
-            if (streamOpenRef.current) {
-              controller.enqueue(buffer);
-            }
+          console.log(
+            `UploadManager: Data available for ${streamType}, size: ${event.data.size}`
+          );
+          const chunk = event.data;
+          const buffer = Buffer.from(await chunk.arrayBuffer());
+          if (streamOpenRef.current) {
+            controller.enqueue(buffer);
           }
+        } else {
+          console.log(
+            `UploadManager: No data available for ${streamType} or stream closed`
+          );
         }
       };
 
       mediaRecorder.onstop = () => {
+        console.log(`UploadManager: MediaRecorder stopped for ${streamType}`);
         streamOpenRef.current = false;
         controller.close();
       };
@@ -147,6 +178,7 @@ function createUpload(
   key: string,
   readableStream: ReadableStream
 ) {
+  console.log(`UploadManager: Creating S3 upload for ${key}`);
   const upload = new Upload({
     client: s3,
     params: {
@@ -155,14 +187,14 @@ function createUpload(
       Body: readableStream,
     },
     tags: [],
-    queueSize: 8,
+    queueSize: 4,
     partSize: 1024 * 1024 * 5,
     leavePartsOnError: false,
   });
 
   upload.on("httpUploadProgress", (progress) => {
     console.log(
-      `Uploaded part: ${progress.loaded}${
+      `UploadManager: Uploaded part for ${key}: ${progress.loaded}${
         progress.total ? `/${progress.total}` : ""
       }`,
       progress

@@ -16,7 +16,19 @@ export default function LiveScreenStreaming() {
         video: true,
       });
       const audio = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const webcam = await navigator.mediaDevices.getUserMedia({ video: true });
+
+      let webcam;
+      try {
+        webcam = await navigator.mediaDevices.getUserMedia({
+          video: {
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
+        });
+      } catch (webcamError) {
+        console.error("Error accessing webcam:", webcamError);
+        alert("Failed to access webcam. The screen will still be recorded.");
+      }
 
       const combinedScreenStream = new MediaStream([
         ...screen.getTracks(),
@@ -24,10 +36,13 @@ export default function LiveScreenStreaming() {
       ]);
 
       setScreenStream(combinedScreenStream);
-      setWebcamStream(webcam);
+      setWebcamStream(webcam || null);
       setIsStreaming(true);
     } catch (error) {
       console.error("Error starting streams:", error);
+      alert(
+        "Failed to start streaming. Please check your permissions and try again."
+      );
     }
   };
 
@@ -64,7 +79,16 @@ export default function LiveScreenStreaming() {
         <div className="aspect-video w-full mb-4">
           <ScreenRecorder stream={screenStream} />
         </div>
-        {isStreaming && <WebcamRecorder stream={webcamStream} />}
+        {isStreaming && webcamStream && (
+          <div className="mt-4">
+            <WebcamRecorder stream={webcamStream} />
+          </div>
+        )}
+        {isStreaming && !webcamStream && (
+          <p className="text-yellow-500 mt-4">
+            Webcam not available. Only screen is being recorded.
+          </p>
+        )}
       </div>
       <UploadManager
         screenStream={screenStream}
