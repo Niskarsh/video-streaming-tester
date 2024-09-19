@@ -53,15 +53,15 @@ export default function LiveScreenStreaming() {
           webcam.
         </p>
         <p>
-          Your screen will be displayed here, and your webcam will appear in a
-          separate Picture-in-Picture window.
+          Your screen will be displayed here, and your webcam will appear below
+          or in Picture-in-Picture mode if supported.
         </p>
         <p>
           The streams will be automatically uploaded to the cloud as you record.
         </p>
       </div>
       <div className="flex-grow flex flex-col justify-center w-full max-w-4xl">
-        <div className="aspect-video w-full">
+        <div className="aspect-video w-full mb-4">
           <ScreenRecorder stream={screenStream} />
         </div>
         {isStreaming && <WebcamRecorder stream={webcamStream} />}
