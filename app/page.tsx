@@ -44,7 +44,8 @@ export default function LiveScreenStreaming() {
       <h1 className="text-2xl font-bold">Live Screen and Webcam Streaming</h1>
       <div className="text-center mb-4">
         <p>
-          Click "Start Streaming" to begin recording your screen and webcam.
+          Click &quot;Start Streaming&quot; to begin recording your screen and
+          webcam.
         </p>
         <p>
           Your screen will be displayed here, and your webcam will appear in

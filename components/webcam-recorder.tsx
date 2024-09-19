@@ -33,7 +33,7 @@ export default function WebcamRecorder({ stream }: WebcamRecorderProps) {
 
     return () => {
       if (videoRef.current && videoRef.current.parentNode !== document.body) {
-        document.body.appendChild(videoRef.current);
+        document.body.appendChild(videoRef?.current);
       }
     };
   }, [stream]);
