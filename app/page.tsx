@@ -43,9 +43,11 @@ export default function LiveScreenStreaming() {
   };
 
   return (
-    <div className="flex flex-col items-center space-y-4 p-4">
-      <h1 className="text-2xl font-bold">Live Screen and Webcam Streaming</h1>
-      <div className="text-center mb-4">
+    <div className="flex flex-col items-center min-h-screen p-4">
+      <h1 className="text-2xl font-bold mb-4">
+        Live Screen and Webcam Streaming
+      </h1>
+      <div className="text-center mb-6">
         <p>
           Click &quot;Start Streaming&quot; to begin recording your screen and
           webcam.
@@ -58,8 +60,10 @@ export default function LiveScreenStreaming() {
           The streams will be automatically uploaded to the cloud as you record.
         </p>
       </div>
-      <div className="w-full max-w-3xl">
-        <ScreenRecorder stream={screenStream} />
+      <div className="flex-grow flex flex-col justify-center w-full max-w-4xl">
+        <div className="aspect-video w-full">
+          <ScreenRecorder stream={screenStream} />
+        </div>
         {isStreaming && <WebcamRecorder stream={webcamStream} />}
       </div>
       <UploadManager
@@ -67,7 +71,7 @@ export default function LiveScreenStreaming() {
         webcamStream={webcamStream}
         isStreaming={isStreaming}
       />
-      <div className="flex justify-center space-x-4">
+      <div className="flex justify-center space-x-4 mt-6">
         <button
           type="button"
           className={`rounded-md bg-green-200 px-3.5 py-2.5 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-green-300 ${

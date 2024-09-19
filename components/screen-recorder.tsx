@@ -14,6 +14,11 @@ export default function ScreenRecorder({ stream }: ScreenRecorderProps) {
   }, [stream]);
 
   return (
-    <video ref={videoRef} autoPlay muted className="w-full max-w-lg"></video>
+    <video
+      ref={videoRef}
+      autoPlay
+      muted
+      className="w-full h-full object-contain bg-black"
+    />
   );
 }
