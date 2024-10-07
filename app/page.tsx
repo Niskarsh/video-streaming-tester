@@ -10,26 +10,53 @@ export default function LiveScreenStreaming() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const streamOpenRef = useRef<boolean>(true);
   const s3 = new S3Client({
-    region: '********',
+    region: '****',
     credentials: {
-      accessKeyId: '********',
-      secretAccessKey: '*********',
+      accessKeyId: '****',
+      secretAccessKey: '***',
     },
     useAccelerateEndpoint: true,
   });
 
   const startStreaming = async () => {
-    const mediaStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-    if (screenVideoRef.current) {
-      screenVideoRef.current.srcObject = mediaStream;
+    // const combinedStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+    // const audioTracks = combinedStream.getAudioTracks();
+
+    // if (audioTracks.length === 0) {
+    //   console.warn('No audio track detected');
+    // } else {
+    //   console.log('Audio track is present');
+    // }
+
+    // Capture screen video
+    const displayMediaStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+    
+    // Capture microphone audio
+    const audioMediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+    const audioTracks = audioMediaStream.getAudioTracks();
+
+    if (audioTracks.length === 0) {
+      console.warn('No audio track detected');
+    } else {
+      console.log('Audio track is present');
     }
 
-    const mediaRecorder = new MediaRecorder(mediaStream, { mimeType: 'video/webm; codecs=vp9' });
+    // Combine video and audio tracks
+    const combinedStream = new MediaStream([
+      ...displayMediaStream.getVideoTracks(),
+      ...audioMediaStream.getAudioTracks()
+    ]);
+    if (screenVideoRef.current) {
+      screenVideoRef.current.srcObject = combinedStream;
+    }
+
+    const mediaRecorder = new MediaRecorder(combinedStream, { mimeType: 'video/webm; codecs=vp9' });
     mediaRecorderRef.current = mediaRecorder;
 
     const readableStream = new ReadableStream({
       start(controller) {
-      
+
         mediaRecorder.ondataavailable = async (event) => {
           if (event.data.size > 0 && streamOpenRef.current) {
             let data = event.data;
